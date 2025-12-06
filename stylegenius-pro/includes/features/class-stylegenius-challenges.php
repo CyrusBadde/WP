@@ -852,6 +852,68 @@ class StyleGenius_Challenges {
     }
 
     /**
+     * AJAX: Submit challenge entry.
+     *
+     * @return void
+     */
+    public function ajax_submit_entry(): void {
+        check_ajax_referer('stylegenius_nonce', 'nonce');
+
+        if (!is_user_logged_in()) {
+            wp_send_json_error(array('message' => __('Bitte melde dich an.', 'stylegenius-pro')));
+        }
+
+        $user_id = get_current_user_id();
+        $challenge_id = isset($_POST['challenge_id']) ? absint($_POST['challenge_id']) : 0;
+
+        if (!$challenge_id) {
+            wp_send_json_error(array('message' => __('Keine Challenge-ID angegeben.', 'stylegenius-pro')));
+        }
+
+        $data = array(
+            'image_id'   => isset($_POST['image_id']) ? absint($_POST['image_id']) : 0,
+            'caption'    => isset($_POST['caption']) ? sanitize_textarea_field(wp_unslash($_POST['caption'])) : '',
+            'items_used' => isset($_POST['items_used']) ? array_map('absint', (array) $_POST['items_used']) : array(),
+        );
+
+        $result = $this->submit_entry($user_id, $challenge_id, $data);
+
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error(array('message' => $result['error']));
+        }
+    }
+
+    /**
+     * AJAX: Vote for challenge entry.
+     *
+     * @return void
+     */
+    public function ajax_vote_entry(): void {
+        check_ajax_referer('stylegenius_nonce', 'nonce');
+
+        if (!is_user_logged_in()) {
+            wp_send_json_error(array('message' => __('Bitte melde dich an.', 'stylegenius-pro')));
+        }
+
+        $user_id = get_current_user_id();
+        $entry_id = isset($_POST['entry_id']) ? absint($_POST['entry_id']) : 0;
+
+        if (!$entry_id) {
+            wp_send_json_error(array('message' => __('Keine Beitrags-ID angegeben.', 'stylegenius-pro')));
+        }
+
+        $result = $this->vote($user_id, $entry_id);
+
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error(array('message' => $result['error']));
+        }
+    }
+
+    /**
      * Export user challenge data for GDPR.
      *
      * @param int $user_id User ID.

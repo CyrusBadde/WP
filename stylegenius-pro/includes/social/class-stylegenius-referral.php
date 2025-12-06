@@ -651,6 +651,50 @@ class StyleGenius_Referral {
     }
 
     /**
+     * AJAX: Get user's referral code.
+     *
+     * @return void
+     */
+    public function ajax_get_code(): void {
+        check_ajax_referer('stylegenius_nonce', 'nonce');
+
+        if (!is_user_logged_in()) {
+            wp_send_json_error(array('message' => __('Bitte melde dich an.', 'stylegenius-pro')));
+        }
+
+        $user_id = get_current_user_id();
+        $code = $this->generate_code($user_id);
+        $url = $this->get_referral_url($user_id);
+
+        wp_send_json_success(array(
+            'code' => $code,
+            'url'  => $url,
+        ));
+    }
+
+    /**
+     * AJAX: Get user's referral statistics.
+     *
+     * @return void
+     */
+    public function ajax_get_stats(): void {
+        check_ajax_referer('stylegenius_nonce', 'nonce');
+
+        if (!is_user_logged_in()) {
+            wp_send_json_error(array('message' => __('Bitte melde dich an.', 'stylegenius-pro')));
+        }
+
+        $user_id = get_current_user_id();
+        $stats = $this->get_user_stats($user_id);
+        $referrals = $this->get_user_referrals($user_id);
+
+        wp_send_json_success(array(
+            'stats'     => $stats,
+            'referrals' => $referrals,
+        ));
+    }
+
+    /**
      * Export user referral data for GDPR.
      *
      * @param int $user_id User ID.

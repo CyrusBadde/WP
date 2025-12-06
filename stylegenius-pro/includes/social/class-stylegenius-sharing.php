@@ -554,6 +554,33 @@ class StyleGenius_Sharing {
     }
 
     /**
+     * AJAX: Track a share action.
+     *
+     * @return void
+     */
+    public function ajax_track_share(): void {
+        check_ajax_referer('stylegenius_nonce', 'nonce');
+
+        $user_id = get_current_user_id();
+        $platform = isset($_POST['platform']) ? sanitize_text_field(wp_unslash($_POST['platform'])) : '';
+        $content_type = isset($_POST['content_type']) ? sanitize_text_field(wp_unslash($_POST['content_type'])) : '';
+        $content_id = isset($_POST['content_id']) ? absint($_POST['content_id']) : 0;
+
+        if (empty($platform) || empty($content_type)) {
+            wp_send_json_error(array('message' => __('Fehlende Parameter.', 'stylegenius-pro')));
+        }
+
+        // Allow tracking even for non-logged-in users (just don't award points)
+        if ($user_id) {
+            $result = $this->track_share($user_id, $platform, $content_type, $content_id);
+            wp_send_json_success(array('tracked' => $result));
+        } else {
+            // Just acknowledge for non-logged in users
+            wp_send_json_success(array('tracked' => true, 'anonymous' => true));
+        }
+    }
+
+    /**
      * Export user share data for GDPR.
      *
      * @param int $user_id User ID.

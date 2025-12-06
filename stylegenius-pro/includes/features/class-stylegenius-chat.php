@@ -599,4 +599,46 @@ class StyleGenius_Chat {
 
         return $stats;
     }
+
+    /**
+     * AJAX: Send message.
+     */
+    public function ajax_send_message(): void {
+        check_ajax_referer('stylegenius_nonce', 'nonce');
+
+        if (!is_user_logged_in()) {
+            wp_send_json_error(array('message' => __('Bitte melde dich an.', 'stylegenius-pro')));
+        }
+
+        $message = isset($_POST['message']) ? sanitize_textarea_field($_POST['message']) : '';
+        $session = isset($_POST['session']) ? sanitize_text_field($_POST['session']) : null;
+
+        if (empty($message)) {
+            wp_send_json_error(array('message' => __('Nachricht darf nicht leer sein.', 'stylegenius-pro')));
+        }
+
+        $result = $this->send_message(get_current_user_id(), $message, $session);
+
+        if (isset($result['error'])) {
+            wp_send_json_error($result);
+        }
+
+        wp_send_json_success($result);
+    }
+
+    /**
+     * AJAX: Get chat history.
+     */
+    public function ajax_get_history(): void {
+        check_ajax_referer('stylegenius_nonce', 'nonce');
+
+        if (!is_user_logged_in()) {
+            wp_send_json_error(array('message' => __('Bitte melde dich an.', 'stylegenius-pro')));
+        }
+
+        $session = isset($_POST['session']) ? sanitize_text_field($_POST['session']) : null;
+        $history = $this->get_history(get_current_user_id(), $session);
+
+        wp_send_json_success(array('history' => $history));
+    }
 }

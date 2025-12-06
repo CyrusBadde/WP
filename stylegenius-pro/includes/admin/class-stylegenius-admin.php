@@ -43,6 +43,17 @@ class StyleGenius_Admin {
     }
 
     /**
+     * Initialize admin hooks.
+     *
+     * @return void
+     */
+    public function init(): void {
+        add_action('admin_menu', array($this, 'add_admin_menu'));
+        add_action('admin_enqueue_scripts', array($this, 'enqueue_styles'));
+        add_action('admin_enqueue_scripts', array($this, 'enqueue_scripts'));
+    }
+
+    /**
      * Register admin menu.
      *
      * @return void

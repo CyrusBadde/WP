@@ -949,6 +949,105 @@ class StyleGenius_Wardrobe {
     }
 
     /**
+     * AJAX: Get user's wardrobe items.
+     *
+     * @return void
+     */
+    public function ajax_get_wardrobe(): void {
+        check_ajax_referer('stylegenius_nonce', 'nonce');
+
+        if (!is_user_logged_in()) {
+            wp_send_json_error(array('message' => __('Bitte melde dich an.', 'stylegenius-pro')));
+        }
+
+        $user_id = get_current_user_id();
+        $filters = array();
+
+        if (!empty($_POST['category'])) {
+            $filters['category'] = sanitize_text_field(wp_unslash($_POST['category']));
+        }
+        if (!empty($_POST['season'])) {
+            $filters['season'] = sanitize_text_field(wp_unslash($_POST['season']));
+        }
+        if (!empty($_POST['occasion'])) {
+            $filters['occasion'] = sanitize_text_field(wp_unslash($_POST['occasion']));
+        }
+        if (!empty($_POST['favorites'])) {
+            $filters['favorites'] = true;
+        }
+        if (!empty($_POST['search'])) {
+            $filters['search'] = sanitize_text_field(wp_unslash($_POST['search']));
+        }
+
+        $result = $this->get_items($user_id, $filters);
+        wp_send_json_success($result);
+    }
+
+    /**
+     * AJAX: Add item to wardrobe.
+     *
+     * @return void
+     */
+    public function ajax_add_item(): void {
+        check_ajax_referer('stylegenius_nonce', 'nonce');
+
+        if (!is_user_logged_in()) {
+            wp_send_json_error(array('message' => __('Bitte melde dich an.', 'stylegenius-pro')));
+        }
+
+        $user_id = get_current_user_id();
+
+        $data = array(
+            'image_id'    => isset($_POST['image_id']) ? absint($_POST['image_id']) : 0,
+            'name'        => isset($_POST['name']) ? sanitize_text_field(wp_unslash($_POST['name'])) : '',
+            'category'    => isset($_POST['category']) ? sanitize_text_field(wp_unslash($_POST['category'])) : '',
+            'subcategory' => isset($_POST['subcategory']) ? sanitize_text_field(wp_unslash($_POST['subcategory'])) : '',
+            'brand'       => isset($_POST['brand']) ? sanitize_text_field(wp_unslash($_POST['brand'])) : '',
+            'colors'      => isset($_POST['colors']) ? array_map('sanitize_text_field', (array) $_POST['colors']) : array(),
+            'seasons'     => isset($_POST['seasons']) ? array_map('sanitize_text_field', (array) $_POST['seasons']) : array(),
+            'occasions'   => isset($_POST['occasions']) ? array_map('sanitize_text_field', (array) $_POST['occasions']) : array(),
+            'tags'        => isset($_POST['tags']) ? array_map('sanitize_text_field', (array) $_POST['tags']) : array(),
+            'favorite'    => !empty($_POST['favorite']),
+        );
+
+        $result = $this->add_item($user_id, $data);
+
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error(array('message' => $result['error']));
+        }
+    }
+
+    /**
+     * AJAX: Delete item from wardrobe.
+     *
+     * @return void
+     */
+    public function ajax_delete_item(): void {
+        check_ajax_referer('stylegenius_nonce', 'nonce');
+
+        if (!is_user_logged_in()) {
+            wp_send_json_error(array('message' => __('Bitte melde dich an.', 'stylegenius-pro')));
+        }
+
+        $user_id = get_current_user_id();
+        $item_id = isset($_POST['item_id']) ? absint($_POST['item_id']) : 0;
+
+        if (!$item_id) {
+            wp_send_json_error(array('message' => __('Keine Item-ID angegeben.', 'stylegenius-pro')));
+        }
+
+        $result = $this->delete_item($item_id, $user_id);
+
+        if ($result['success']) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error(array('message' => $result['error']));
+        }
+    }
+
+    /**
      * Export wardrobe data for GDPR.
      *
      * @param int $user_id User ID.

@@ -733,4 +733,30 @@ class StyleGenius_Quiz {
 
         return $stats;
     }
+
+    /**
+     * AJAX: Submit quiz answers.
+     */
+    public function ajax_submit_quiz(): void {
+        check_ajax_referer('stylegenius_nonce', 'nonce');
+
+        if (!is_user_logged_in()) {
+            wp_send_json_error(array('message' => __('Bitte melde dich an.', 'stylegenius-pro')));
+        }
+
+        $answers = isset($_POST['answers']) ? (array) $_POST['answers'] : array();
+        if (empty($answers)) {
+            wp_send_json_error(array('message' => __('Keine Antworten erhalten.', 'stylegenius-pro')));
+        }
+
+        $result = $this->submit_answers(get_current_user_id(), $answers);
+        wp_send_json_success($result);
+    }
+
+    /**
+     * AJAX: Get quiz questions.
+     */
+    public function ajax_get_questions(): void {
+        wp_send_json_success(array('questions' => $this->get_questions()));
+    }
 }

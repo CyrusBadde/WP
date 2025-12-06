@@ -604,4 +604,51 @@ class StyleGenius_Upload {
             'ratio'  => round($ratio, 2),
         );
     }
+
+    /**
+     * AJAX: Handle upload.
+     */
+    public function ajax_handle_upload(): void {
+        check_ajax_referer('stylegenius_nonce', 'nonce');
+
+        if (!is_user_logged_in()) {
+            wp_send_json_error(array('message' => __('Bitte melde dich an.', 'stylegenius-pro')));
+        }
+
+        if (empty($_FILES['file'])) {
+            wp_send_json_error(array('message' => __('Keine Datei hochgeladen.', 'stylegenius-pro')));
+        }
+
+        $category = isset($_POST['category']) ? sanitize_text_field($_POST['category']) : 'general';
+        $result = $this->upload(get_current_user_id(), $_FILES['file'], $category);
+
+        if (isset($result['error'])) {
+            wp_send_json_error($result);
+        }
+
+        wp_send_json_success($result);
+    }
+
+    /**
+     * AJAX: Delete upload.
+     */
+    public function ajax_delete_upload(): void {
+        check_ajax_referer('stylegenius_nonce', 'nonce');
+
+        if (!is_user_logged_in()) {
+            wp_send_json_error(array('message' => __('Bitte melde dich an.', 'stylegenius-pro')));
+        }
+
+        $attachment_id = isset($_POST['attachment_id']) ? absint($_POST['attachment_id']) : 0;
+        if (!$attachment_id) {
+            wp_send_json_error(array('message' => __('Ungültige Datei-ID.', 'stylegenius-pro')));
+        }
+
+        $result = $this->delete($attachment_id, get_current_user_id());
+        if ($result) {
+            wp_send_json_success(array('message' => __('Datei gelöscht.', 'stylegenius-pro')));
+        } else {
+            wp_send_json_error(array('message' => __('Fehler beim Löschen.', 'stylegenius-pro')));
+        }
+    }
 }

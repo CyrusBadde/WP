@@ -489,7 +489,7 @@ class StyleGenius {
      */
     public function check_challenge_status(): void {
         $challenges = new StyleGenius_Challenges();
-        $challenges->check_and_update_statuses();
+        $challenges->update_challenge_statuses();
     }
 
     /**
