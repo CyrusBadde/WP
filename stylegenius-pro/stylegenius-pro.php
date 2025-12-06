@@ -60,8 +60,8 @@ function stylegenius_autoloader( string $class_name ): void {
         STYLEGENIUS_PLUGIN_DIR . 'includes/integrations/',
         STYLEGENIUS_PLUGIN_DIR . 'includes/gating/',
         STYLEGENIUS_PLUGIN_DIR . 'includes/api/',
-        STYLEGENIUS_PLUGIN_DIR . 'admin/',
-        STYLEGENIUS_PLUGIN_DIR . 'public/',
+        STYLEGENIUS_PLUGIN_DIR . 'includes/admin/',
+        STYLEGENIUS_PLUGIN_DIR . 'includes/public/',
     );
 
     // Datei in den Verzeichnissen suchen
@@ -113,10 +113,10 @@ function stylegenius_check_requirements(): bool {
         return false;
     }
 
-    // WooCommerce prüfen
+    // WooCommerce prüfen (nur Hinweis, nicht blockieren)
     if ( ! class_exists( 'WooCommerce' ) ) {
         add_action( 'admin_notices', 'stylegenius_woocommerce_notice' );
-        return false;
+        // Plugin funktioniert auch ohne WooCommerce, nur mit eingeschränkten Features
     }
 
     return true;
@@ -248,42 +248,27 @@ class StyleGenius {
      * Registriert alle Admin-Hooks
      */
     private function define_admin_hooks(): void {
-        $admin = new StyleGenius_Admin( $this->plugin_name, $this->version );
-
-        $this->loader->add_action( 'admin_enqueue_scripts', $admin, 'enqueue_styles' );
-        $this->loader->add_action( 'admin_enqueue_scripts', $admin, 'enqueue_scripts' );
-        $this->loader->add_action( 'admin_menu', $admin, 'add_admin_menu' );
-        $this->loader->add_filter( 'plugin_action_links_' . STYLEGENIUS_PLUGIN_BASENAME, $admin, 'add_plugin_action_links' );
-        $this->loader->add_action( 'admin_notices', $admin, 'admin_notices' );
-
-        // AJAX-Handler für Admin
-        $this->loader->add_action( 'wp_ajax_stylegenius_get_stats', $admin, 'ajax_get_stats' );
-        $this->loader->add_action( 'wp_ajax_stylegenius_test_api', $admin, 'ajax_test_api' );
-        $this->loader->add_action( 'wp_ajax_stylegenius_clear_cache', $admin, 'ajax_clear_cache' );
+        $admin = new StyleGenius_Admin();
+        $admin->init();
 
         // Settings
         $settings = new StyleGenius_Settings();
-        $this->loader->add_action( 'admin_init', $settings, 'register_settings' );
+
+        // Challenge Admin
+        $challenge_admin = new StyleGenius_Challenge_Admin();
+        $challenge_admin->init();
     }
 
     /**
      * Registriert alle Public-Hooks
      */
     private function define_public_hooks(): void {
-        $public = new StyleGenius_Public( $this->plugin_name, $this->version );
-
-        $this->loader->add_action( 'wp_enqueue_scripts', $public, 'enqueue_styles' );
-        $this->loader->add_action( 'wp_enqueue_scripts', $public, 'enqueue_scripts' );
-        $this->loader->add_action( 'init', $public, 'register_rewrite_rules' );
-        $this->loader->add_filter( 'query_vars', $public, 'add_query_vars' );
-        $this->loader->add_action( 'template_redirect', $public, 'handle_share_page' );
-        $this->loader->add_action( 'template_redirect', $public, 'handle_referral_code' );
-        $this->loader->add_action( 'wp_head', $public, 'add_og_meta_tags' );
-        $this->loader->add_filter( 'body_class', $public, 'add_body_classes' );
+        $public = new StyleGenius_Public( $this->version );
+        $public->init();
 
         // Shortcodes
         $shortcodes = new StyleGenius_Shortcodes();
-        $shortcodes->register_shortcodes();
+        $shortcodes->register();
 
         // AJAX-Handler
         $this->define_ajax_hooks();
@@ -310,12 +295,10 @@ class StyleGenius {
         $this->loader->add_action( 'wp_ajax_stylegenius_delete_upload', $upload, 'ajax_delete_upload' );
 
         // Wardrobe
-        $wardrobe_ajax = new StyleGenius_Wardrobe_Ajax();
-        $this->loader->add_action( 'wp_ajax_stylegenius_get_wardrobe', $wardrobe_ajax, 'ajax_get_wardrobe' );
-        $this->loader->add_action( 'wp_ajax_stylegenius_add_wardrobe_item', $wardrobe_ajax, 'ajax_add_item' );
-        $this->loader->add_action( 'wp_ajax_stylegenius_update_wardrobe_item', $wardrobe_ajax, 'ajax_update_item' );
-        $this->loader->add_action( 'wp_ajax_stylegenius_delete_wardrobe_item', $wardrobe_ajax, 'ajax_delete_item' );
-        $this->loader->add_action( 'wp_ajax_stylegenius_get_outfit_suggestion', $wardrobe_ajax, 'ajax_get_outfit_suggestion' );
+        $wardrobe = new StyleGenius_Wardrobe();
+        $this->loader->add_action( 'wp_ajax_stylegenius_get_wardrobe', $wardrobe, 'ajax_get_wardrobe' );
+        $this->loader->add_action( 'wp_ajax_stylegenius_add_wardrobe_item', $wardrobe, 'ajax_add_item' );
+        $this->loader->add_action( 'wp_ajax_stylegenius_delete_wardrobe_item', $wardrobe, 'ajax_delete_item' );
 
         // Gamification
         $this->loader->add_action( 'wp_ajax_stylegenius_get_points', array( $this, 'ajax_get_points' ) );
@@ -328,27 +311,9 @@ class StyleGenius {
         $this->loader->add_action( 'wp_ajax_stylegenius_vote_entry', $challenges, 'ajax_vote_entry' );
 
         // Referral
-        $referral_ajax = new StyleGenius_Referral_Ajax();
-        $this->loader->add_action( 'wp_ajax_stylegenius_get_referral_code', $referral_ajax, 'ajax_get_code' );
-        $this->loader->add_action( 'wp_ajax_stylegenius_get_referral_stats', $referral_ajax, 'ajax_get_stats' );
-
-        // Color Analysis
-        $color = new StyleGenius_Color_Analysis_Ajax();
-        $this->loader->add_action( 'wp_ajax_stylegenius_analyze_colors', $color, 'ajax_analyze' );
-
-        // Before/After
-        $before_after = new StyleGenius_Before_After_Ajax();
-        $this->loader->add_action( 'wp_ajax_stylegenius_analyze_outfit', $before_after, 'ajax_analyze' );
-
-        // Capsule
-        $capsule_ajax = new StyleGenius_Capsule_Ajax();
-        $this->loader->add_action( 'wp_ajax_stylegenius_generate_capsule', $capsule_ajax, 'ajax_generate' );
-        $this->loader->add_action( 'wp_ajax_stylegenius_save_capsule', $capsule_ajax, 'ajax_save' );
-
-        // Shopping
-        $shopping = new StyleGenius_Shopping_Ajax();
-        $this->loader->add_action( 'wp_ajax_stylegenius_search_products', $shopping, 'ajax_search' );
-        $this->loader->add_action( 'wp_ajax_stylegenius_track_click', $shopping, 'ajax_track_click' );
+        $referral = new StyleGenius_Referral();
+        $this->loader->add_action( 'wp_ajax_stylegenius_get_referral_code', $referral, 'ajax_get_code' );
+        $this->loader->add_action( 'wp_ajax_stylegenius_get_referral_stats', $referral, 'ajax_get_stats' );
 
         // User Profile
         $this->loader->add_action( 'wp_ajax_stylegenius_update_profile', array( $this, 'ajax_update_profile' ) );
@@ -379,12 +344,9 @@ class StyleGenius {
             wp_send_json_error( array( 'message' => __( 'Nicht eingeloggt.', 'stylegenius-pro' ) ) );
         }
 
-        $points = new StyleGenius_Points( get_current_user_id() );
-        wp_send_json_success( array(
-            'points' => $points->get_points(),
-            'today'  => $points->get_points_today(),
-            'week'   => $points->get_points_this_week(),
-        ) );
+        $points = new StyleGenius_Points();
+        $user_points = $points->get_user_points( get_current_user_id() );
+        wp_send_json_success( $user_points );
     }
 
     /**
@@ -397,10 +359,10 @@ class StyleGenius {
             wp_send_json_error( array( 'message' => __( 'Nicht eingeloggt.', 'stylegenius-pro' ) ) );
         }
 
-        $badges = new StyleGenius_Badges( get_current_user_id() );
+        $achievements = new StyleGenius_Achievements();
         wp_send_json_success( array(
-            'earned' => $badges->get_user_badges(),
-            'all'    => $badges->get_all_badges(),
+            'earned' => $achievements->get_user_achievements( get_current_user_id() ),
+            'all'    => $achievements->get_all_achievements(),
         ) );
     }
 
@@ -505,7 +467,7 @@ class StyleGenius {
         // WooCommerce-Integration
         if ( class_exists( 'WooCommerce' ) ) {
             $woocommerce = new StyleGenius_WooCommerce();
-            $woocommerce->init_hooks();
+            $woocommerce->init();
         }
 
         // Elementor-Integration
