@@ -22,7 +22,7 @@ class StyleGenius_Activator {
      *
      * @var string
      */
-    private static string $db_version = '1.0.0';
+    private static string $db_version = '1.1.0';
 
     /**
      * Aktiviert das Plugin
@@ -130,7 +130,8 @@ class StyleGenius_Activator {
             user_id BIGINT(20) UNSIGNED NOT NULL,
             action VARCHAR(50) NOT NULL,
             points INT(11) NOT NULL,
-            balance INT(11) NOT NULL,
+            description VARCHAR(255) DEFAULT NULL,
+            balance INT(11) NOT NULL DEFAULT 0,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY user_id (user_id),
@@ -196,15 +197,15 @@ class StyleGenius_Activator {
             id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
             referrer_id BIGINT(20) UNSIGNED NOT NULL,
             referred_id BIGINT(20) UNSIGNED DEFAULT NULL,
-            referral_code VARCHAR(20) NOT NULL,
-            status ENUM('pending', 'completed', 'rewarded') NOT NULL DEFAULT 'pending',
+            code_used VARCHAR(20) NOT NULL,
+            status ENUM('pending', 'completed', 'expired', 'cancelled') NOT NULL DEFAULT 'pending',
+            rewards LONGTEXT DEFAULT NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             completed_at DATETIME DEFAULT NULL,
-            reward_tier INT(11) DEFAULT NULL,
-            ip_address VARCHAR(45) DEFAULT NULL,
             PRIMARY KEY (id),
             KEY referrer_id (referrer_id),
-            KEY referral_code (referral_code),
+            KEY referred_id (referred_id),
+            KEY code_used (code_used),
             KEY status (status)
         ) {$charset_collate};";
     }
@@ -225,7 +226,7 @@ class StyleGenius_Activator {
             content_type VARCHAR(50) NOT NULL,
             content_id BIGINT(20) UNSIGNED DEFAULT NULL,
             platform VARCHAR(30) NOT NULL,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            shared_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY user_id (user_id),
             KEY content_type (content_type),
@@ -306,7 +307,9 @@ class StyleGenius_Activator {
         return "CREATE TABLE {$table_name} (
             id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
             user_id BIGINT(20) UNSIGNED NOT NULL,
-            image_id BIGINT(20) UNSIGNED NOT NULL,
+            title VARCHAR(255) DEFAULT NULL,
+            before_image_id BIGINT(20) UNSIGNED DEFAULT NULL,
+            after_image_id BIGINT(20) UNSIGNED DEFAULT NULL,
             occasion VARCHAR(50) NOT NULL DEFAULT 'business',
             overall_score INT(3) NOT NULL DEFAULT 0,
             fit_score INT(3) DEFAULT NULL,
@@ -315,12 +318,15 @@ class StyleGenius_Activator {
             accessories_score INT(3) DEFAULT NULL,
             analysis LONGTEXT DEFAULT NULL,
             improvements LONGTEXT DEFAULT NULL,
-            share_image_url VARCHAR(500) DEFAULT NULL,
+            is_public TINYINT(1) NOT NULL DEFAULT 0,
+            share_token VARCHAR(32) DEFAULT NULL,
+            share_url VARCHAR(500) DEFAULT NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY user_id (user_id),
             KEY occasion (occasion),
-            KEY overall_score (overall_score)
+            KEY share_token (share_token),
+            KEY is_public (is_public)
         ) {$charset_collate};";
     }
 
@@ -338,17 +344,16 @@ class StyleGenius_Activator {
             id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
             title VARCHAR(255) NOT NULL,
             description TEXT DEFAULT NULL,
-            challenge_type VARCHAR(50) NOT NULL DEFAULT 'outfit',
-            requirements TEXT DEFAULT NULL,
+            type VARCHAR(50) NOT NULL DEFAULT 'outfit',
+            rules TEXT DEFAULT NULL,
+            image_id BIGINT(20) UNSIGNED DEFAULT NULL,
             start_date DATETIME NOT NULL,
             end_date DATETIME NOT NULL,
-            voting_end_date DATETIME DEFAULT NULL,
-            status ENUM('draft', 'upcoming', 'active', 'voting', 'completed') NOT NULL DEFAULT 'draft',
-            min_tier VARCHAR(20) NOT NULL DEFAULT 'free',
-            prizes LONGTEXT DEFAULT NULL,
-            image_id BIGINT(20) UNSIGNED DEFAULT NULL,
-            max_entries INT(11) DEFAULT NULL,
-            created_by BIGINT(20) UNSIGNED DEFAULT NULL,
+            prize_info TEXT DEFAULT NULL,
+            points INT(11) NOT NULL DEFAULT 50,
+            winner_points INT(11) NOT NULL DEFAULT 200,
+            status ENUM('scheduled', 'active', 'completed') NOT NULL DEFAULT 'scheduled',
+            winner_id BIGINT(20) UNSIGNED DEFAULT NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY status (status),
@@ -372,16 +377,14 @@ class StyleGenius_Activator {
             challenge_id BIGINT(20) UNSIGNED NOT NULL,
             user_id BIGINT(20) UNSIGNED NOT NULL,
             image_id BIGINT(20) UNSIGNED NOT NULL,
-            description TEXT DEFAULT NULL,
-            vote_count INT(11) NOT NULL DEFAULT 0,
-            is_winner TINYINT(1) NOT NULL DEFAULT 0,
-            placement INT(11) DEFAULT NULL,
-            disqualified TINYINT(1) NOT NULL DEFAULT 0,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            caption TEXT DEFAULT NULL,
+            items_used LONGTEXT DEFAULT NULL,
+            status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'approved',
+            submitted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             UNIQUE KEY user_challenge (user_id, challenge_id),
             KEY challenge_id (challenge_id),
-            KEY vote_count (vote_count)
+            KEY status (status)
         ) {$charset_collate};";
     }
 
@@ -398,12 +401,12 @@ class StyleGenius_Activator {
         return "CREATE TABLE {$table_name} (
             id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
             entry_id BIGINT(20) UNSIGNED NOT NULL,
-            user_id BIGINT(20) UNSIGNED NOT NULL,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            voter_id BIGINT(20) UNSIGNED NOT NULL,
+            voted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
-            UNIQUE KEY entry_user (entry_id, user_id),
+            UNIQUE KEY entry_voter (entry_id, voter_id),
             KEY entry_id (entry_id),
-            KEY user_id (user_id)
+            KEY voter_id (voter_id)
         ) {$charset_collate};";
     }
 
@@ -502,33 +505,25 @@ class StyleGenius_Activator {
         return "CREATE TABLE {$table_name} (
             id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
             user_id BIGINT(20) UNSIGNED NOT NULL,
-            attachment_id BIGINT(20) UNSIGNED NOT NULL,
+            image_id BIGINT(20) UNSIGNED NOT NULL,
+            name VARCHAR(255) DEFAULT NULL,
             category VARCHAR(50) NOT NULL,
             subcategory VARCHAR(50) DEFAULT NULL,
-            name VARCHAR(255) DEFAULT NULL,
             brand VARCHAR(100) DEFAULT NULL,
-            color VARCHAR(50) DEFAULT NULL,
-            colors_secondary LONGTEXT DEFAULT NULL,
-            pattern VARCHAR(50) DEFAULT NULL,
-            material VARCHAR(50) DEFAULT NULL,
-            season VARCHAR(50) DEFAULT NULL,
+            colors LONGTEXT DEFAULT NULL,
+            seasons LONGTEXT DEFAULT NULL,
             occasions LONGTEXT DEFAULT NULL,
             tags LONGTEXT DEFAULT NULL,
+            favorite TINYINT(1) NOT NULL DEFAULT 0,
+            wear_count INT(11) NOT NULL DEFAULT 0,
+            last_worn DATETIME DEFAULT NULL,
             ai_analysis LONGTEXT DEFAULT NULL,
-            purchase_price DECIMAL(10,2) DEFAULT NULL,
-            purchase_date DATE DEFAULT NULL,
-            times_worn INT(11) NOT NULL DEFAULT 0,
-            last_worn DATE DEFAULT NULL,
-            is_favorite TINYINT(1) NOT NULL DEFAULT 0,
-            notes TEXT DEFAULT NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY user_id (user_id),
             KEY category (category),
-            KEY color (color),
-            KEY season (season),
-            KEY is_favorite (is_favorite)
+            KEY favorite (favorite)
         ) {$charset_collate};";
     }
 
