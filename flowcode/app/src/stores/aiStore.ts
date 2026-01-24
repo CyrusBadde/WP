@@ -13,17 +13,16 @@ interface AIState {
   // Pending actions
   pendingActions: AIAction[];
 
-  // API Key (NOT persisted - memory only)
-  apiKey: string | null;
-  hasApiKey: boolean;
+  // Proxy configuration (API key is now server-side)
+  proxyConfigured: boolean;
+  proxyError: string | null;
 
   // Rate limiting
   requestCount: number;
   lastRequestTime: number;
 
   // Actions
-  setApiKey: (key: string | null) => void;
-  clearApiKey: () => void;
+  setProxyStatus: (configured: boolean, error?: string | null) => void;
   sendMessage: (content: string) => void;
   appendStreamChunk: (chunk: StreamChunk) => void;
   finishStreaming: () => void;
@@ -36,10 +35,15 @@ interface AIState {
   clearChat: () => void;
   canMakeRequest: () => boolean;
   recordRequest: () => void;
+  checkProxyHealth: () => Promise<boolean>;
 }
 
 const MAX_REQUESTS_PER_MINUTE = 20;
 const REQUEST_WINDOW_MS = 60000;
+
+// Proxy URL for health checks
+const PROXY_HEALTH_URL = import.meta.env.VITE_AI_PROXY_URL?.replace('/api/ai/complete', '/health')
+  || 'http://localhost:3001/health';
 
 export const useAIStore = create<AIState>()(
   persist(
@@ -49,17 +53,34 @@ export const useAIStore = create<AIState>()(
       streamingMessageId: null,
       currentAgent: 'orchestrator',
       pendingActions: [],
-      apiKey: null,
-      hasApiKey: false,
+      proxyConfigured: false,
+      proxyError: null,
       requestCount: 0,
       lastRequestTime: 0,
 
-      setApiKey: (key) => {
-        set({ apiKey: key, hasApiKey: !!key });
+      setProxyStatus: (configured, error = null) => {
+        set({ proxyConfigured: configured, proxyError: error });
       },
 
-      clearApiKey: () => {
-        set({ apiKey: null, hasApiKey: false });
+      checkProxyHealth: async () => {
+        try {
+          const response = await fetch(PROXY_HEALTH_URL, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' },
+          });
+
+          if (response.ok) {
+            set({ proxyConfigured: true, proxyError: null });
+            return true;
+          } else {
+            set({ proxyConfigured: false, proxyError: `Proxy returned status ${response.status}` });
+            return false;
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          set({ proxyConfigured: false, proxyError: `Cannot connect to proxy: ${errorMessage}` });
+          return false;
+        }
       },
 
       sendMessage: (content) => {
@@ -241,9 +262,10 @@ export const useAIStore = create<AIState>()(
   )
 );
 
-// Clear API key on page unload (security measure)
+// Check proxy health on initial load
 if (typeof window !== 'undefined') {
-  window.addEventListener('beforeunload', () => {
-    useAIStore.getState().clearApiKey();
-  });
+  // Delay health check to let the app initialize
+  setTimeout(() => {
+    useAIStore.getState().checkProxyHealth();
+  }, 1000);
 }

@@ -122,20 +122,20 @@ function QuickAction({ icon: Icon, label, onClick }: QuickActionProps) {
 
 export function ChatPanel() {
   const [input, setInput] = useState('');
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
-  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [showSettings, setShowSettings] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const {
     messages,
     isStreaming,
-    hasApiKey,
+    proxyConfigured,
+    proxyError,
     currentAgent,
     sendMessage,
     appendStreamChunk,
     finishStreaming,
     cancelStreaming,
-    setApiKey,
+    checkProxyHealth,
   } = useAIStore();
 
   const { currentProject, getActiveFile, files } = useProjectStore();
@@ -167,8 +167,8 @@ export function ChatPanel() {
 
     sendMessage(userInput);
 
-    // Use mock adapter if no API key
-    const adapter = hasApiKey ? aiAdapter : mockAIAdapter;
+    // Use mock adapter if proxy is not configured
+    const adapter = proxyConfigured ? aiAdapter : mockAIAdapter;
 
     try {
       for await (const chunk of adapter.complete({
@@ -200,7 +200,7 @@ export function ChatPanel() {
   }, [
     input,
     isStreaming,
-    hasApiKey,
+    proxyConfigured,
     messages,
     currentAgent,
     currentProject,
@@ -221,14 +221,9 @@ export function ChatPanel() {
     [handleSend]
   );
 
-  const handleSetApiKey = useCallback(() => {
-    if (apiKeyInput.trim()) {
-      aiAdapter.setApiKey(apiKeyInput.trim());
-      setApiKey(apiKeyInput.trim());
-      setShowApiKeyInput(false);
-      setApiKeyInput('');
-    }
-  }, [apiKeyInput, setApiKey]);
+  const handleCheckProxy = useCallback(async () => {
+    await checkProxyHealth();
+  }, [checkProxyHealth]);
 
   const quickActions = [
     { icon: Bug, label: 'Fix bug', prompt: 'Help me fix this bug: ' },
@@ -250,41 +245,50 @@ export function ChatPanel() {
             variant="ghost"
             size="icon"
             className="h-8 w-8"
-            onClick={() => setShowApiKeyInput(!showApiKeyInput)}
-            title="API Settings"
+            onClick={() => setShowSettings(!showSettings)}
+            title="AI Settings"
           >
             <Settings className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      {/* API Key Input */}
-      {showApiKeyInput && (
+      {/* Proxy Status Panel */}
+      {showSettings && (
         <div className="border-b border-border bg-muted/50 p-3">
-          <div className="flex items-center gap-2">
-            <Input
-              type="password"
-              value={apiKeyInput}
-              onChange={(e) => setApiKeyInput(e.target.value)}
-              placeholder="Enter Anthropic API key (sk-ant-...)"
-              className="flex-1"
-            />
-            <Button onClick={handleSetApiKey} size="sm">
-              Save
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setShowApiKeyInput(false)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div
+                className={cn(
+                  'h-2 w-2 rounded-full',
+                  proxyConfigured ? 'bg-green-500' : 'bg-yellow-500'
+                )}
+              />
+              <span className="text-sm">
+                {proxyConfigured ? 'AI Proxy Connected' : 'AI Proxy Not Connected'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button onClick={handleCheckProxy} size="sm" variant="outline">
+                Reconnect
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setShowSettings(false)}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
+          {proxyError && (
+            <p className="mt-2 text-xs text-destructive">{proxyError}</p>
+          )}
           <p className="mt-2 text-xs text-muted-foreground">
-            {hasApiKey
-              ? 'API key is set. Key is stored in memory only and cleared on page close.'
-              : 'No API key set. Using demo mode with simulated responses.'}
+            {proxyConfigured
+              ? 'Connected to secure AI proxy. API key is stored server-side.'
+              : 'Start the proxy server: cd server && npm install && npm run dev'}
           </p>
         </div>
       )}
@@ -358,9 +362,9 @@ export function ChatPanel() {
           </Button>
         </div>
 
-        {!hasApiKey && (
+        {!proxyConfigured && (
           <p className="mt-2 text-xs text-yellow-600 dark:text-yellow-500">
-            Demo mode: Responses are simulated. Add API key for real AI assistance.
+            Demo mode: Responses are simulated. Start the AI proxy server for real AI assistance.
           </p>
         )}
       </div>

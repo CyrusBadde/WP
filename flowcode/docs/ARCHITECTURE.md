@@ -36,7 +36,7 @@ FlowCode is a browser-first "vibe coding" platform that combines AI-assisted dev
 │  │                          Service Layer                                  │ │
 │  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌─────────────┐ │ │
 │  │  │ FileSystem   │  │ AI Adapter   │  │ Integration  │  │ Audit Log   │ │ │
-│  │  │ (Simulated)  │  │ (Anthropic)  │  │ Adapters     │  │ Service     │ │ │
+│  │  │ (Simulated)  │  │ (via Proxy)  │  │ Adapters     │  │ Service     │ │ │
 │  │  └──────────────┘  └──────────────┘  └──────────────┘  └─────────────┘ │ │
 │  └────────────────────────────────────────────────────────────────────────┘ │
 │                                   │                                         │
@@ -47,31 +47,34 @@ FlowCode is a browser-first "vibe coding" platform that combines AI-assisted dev
 │  └────────────────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
-                                    │ HTTPS (API calls only)
+                                    │ HTTPS (via server proxy)
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           AI PROXY SERVER                                    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │ Node.js + Express                                                     │   │
+│  │ - Holds API key securely (env variable)                               │   │
+│  │ - Proxies requests to Anthropic API                                   │   │
+│  │ - Handles CORS for browser access                                     │   │
+│  │ - Streams responses back to client                                    │   │
+│  └──────────────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    │ HTTPS (API key in server)
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                           EXTERNAL SERVICES                                  │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  ┌──────────────┐                                                           │
 │  │ Anthropic    │  AI completions (claude-sonnet-4-20250514)                    │
-│  │ API          │  Configurable via adapter                                 │
+│  │ API          │  API key stored server-side only                         │
 │  └──────────────┘                                                           │
 │                                                                             │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  (Phase 3)           │
 │  │ GitHub       │  │ Vercel       │  │ Supabase     │  Requires OAuth +    │
 │  │ (mocked P1)  │  │ (mocked P1)  │  │ (mocked P1)  │  backend token store │
 │  └──────────────┘  └──────────────┘  └──────────────┘                       │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    │ (Phase 3 only)
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           BACKEND (Phase 3)                                  │
-├─────────────────────────────────────────────────────────────────────────────┤
-│  - OAuth flow handlers                                                      │
-│  - Secure token storage (encrypted at rest)                                 │
-│  - Deployment orchestration                                                 │
-│  - API proxy for integrations                                               │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -398,7 +401,7 @@ const DEFAULT_MODEL = 'claude-sonnet-4-20250514';
 | React UI | Browser | User interaction, immediate feedback |
 | Monaco Editor | Browser | Standard browser-based editor |
 | File System | Browser (IndexedDB) | No backend in Phase 1 |
-| AI API Calls | Browser → Anthropic | Direct API calls with user's key |
+| AI API Calls | Browser → Proxy → Anthropic | API key secured server-side |
 | Preview | Browser (sandboxed iframe) | Security isolation |
 | Workflow Engine | Browser | Local execution with mock adapters |
 | Integrations | Browser (mocked) | Real calls require backend (Phase 3) |
@@ -433,7 +436,7 @@ The preview compiles user code using an in-browser bundler (esbuild-wasm) and re
 | Audit logs | IndexedDB | Append-only, queryable |
 | Settings | LocalStorage | Small, frequently accessed |
 | Theme prefs | LocalStorage | Small, frequently accessed |
-| API keys | **NOT STORED** | Security - prompt each session or Phase 3 backend |
+| API keys | **Server-side only** | Security - stored in server environment variables |
 
 ### 7.2 Demo Mode vs Secure Mode
 

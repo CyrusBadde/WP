@@ -52,7 +52,7 @@ This document identifies security threats to FlowCode and defines mitigations. T
 | Asset | Sensitivity | Location | Protection |
 |-------|-------------|----------|------------|
 | User code/projects | Medium | IndexedDB | Encryption at rest (future) |
-| API keys | **Critical** | Memory only | Never persisted |
+| API keys | **Critical** | Server environment | Never sent to browser |
 | Chat history | Low | IndexedDB | Access control |
 | Audit logs | Medium | IndexedDB | Immutable append-only |
 | Settings | Low | LocalStorage | None needed |
@@ -117,14 +117,15 @@ This document identifies security threats to FlowCode and defines mitigations. T
 
 #### T-I1: API Key Leakage
 **Threat**: API keys exposed via browser storage, logs, or network.
-**Likelihood**: High if stored
+**Likelihood**: Very Low (server-side storage)
 **Impact**: Critical
 **Mitigation**:
-- **Never persist API keys**
-- Keys held in memory only
-- Keys cleared on tab close
+- **API keys stored server-side only**
+- Keys never sent to or stored in browser
+- Server proxy handles all Anthropic API calls
+- Keys loaded from environment variables
 - No logging of sensitive values
-- Phase 3: Server-side token storage
+- CORS restricts proxy access to allowed origins
 
 #### T-I2: Source Code Exfiltration
 **Threat**: Malicious integration or AI extracts user code.
@@ -308,47 +309,40 @@ import DOMPurify from 'dompurify';
 const safeHTML = DOMPurify.sanitize(untrustedHTML);
 ```
 
-### 4.2 Token Leakage Prevention
+### 4.2 API Key Protection (Server-Side Proxy)
 
 ```typescript
-// API Key Handling
-class SecureKeyManager {
-  private key: string | null = null;
+// Server-side API key handling (server/src/index.js)
+// API key is NEVER exposed to the browser
 
-  setKey(key: string): void {
-    // Validate key format
-    if (!this.isValidKeyFormat(key)) {
-      throw new Error('Invalid key format');
-    }
-    this.key = key;
-    // Set up cleanup on page unload
-    window.addEventListener('beforeunload', () => this.clearKey());
-  }
+// Load from environment variable
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
-  getKey(): string {
-    if (!this.key) {
-      throw new Error('API key not set');
-    }
-    return this.key;
-  }
-
-  clearKey(): void {
-    if (this.key) {
-      // Overwrite memory (best effort)
-      this.key = 'x'.repeat(this.key.length);
-      this.key = null;
-    }
-  }
-
-  private isValidKeyFormat(key: string): boolean {
-    // Anthropic keys start with sk-ant-
-    return /^sk-ant-[a-zA-Z0-9-]+$/.test(key);
-  }
+// Validate on startup
+if (!ANTHROPIC_API_KEY) {
+  console.error('ANTHROPIC_API_KEY environment variable is not set');
+  process.exit(1);
 }
 
-// NEVER do this:
-// localStorage.setItem('apiKey', key); // WRONG!
-// console.log('API Key:', key); // WRONG!
+// Proxy endpoint - key is added server-side
+app.post('/api/ai/complete', async (req, res) => {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_API_KEY, // Key only exists on server
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify(req.body),
+  });
+  // Stream response back to client
+});
+
+// CORS restricts access to allowed origins only
+const corsOptions = {
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173'],
+  methods: ['POST', 'OPTIONS'],
+};
 ```
 
 ### 4.3 Prompt Injection Defense
