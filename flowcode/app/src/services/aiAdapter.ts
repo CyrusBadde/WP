@@ -4,7 +4,10 @@ import { auditLog } from '@/stores/auditStore';
 
 // Configurable model - can be changed without code modifications
 const DEFAULT_MODEL = 'claude-sonnet-4-20250514';
-const API_ENDPOINT = 'https://api.anthropic.com/v1/messages';
+
+// Use server-side proxy to avoid exposing API keys in the browser
+// The proxy holds the API key securely and forwards requests to Anthropic
+const PROXY_ENDPOINT = import.meta.env.VITE_AI_PROXY_URL || 'http://localhost:3001/api/ai/complete';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -33,14 +36,19 @@ const defaultConfig: AIAdapterConfig = {
 
 class AIAdapter {
   private config: AIAdapterConfig;
-  private apiKey: string | null = null;
+  private proxyUrl: string;
 
   constructor(config: Partial<AIAdapterConfig> = {}) {
     this.config = { ...defaultConfig, ...config };
+    this.proxyUrl = PROXY_ENDPOINT;
   }
 
-  setApiKey(key: string | null): void {
-    this.apiKey = key;
+  /**
+   * @deprecated API keys are now handled server-side. This method is a no-op.
+   */
+  setApiKey(_key: string | null): void {
+    // No-op: API keys are now managed server-side for security
+    console.warn('setApiKey is deprecated. API keys are now managed server-side via the proxy.');
   }
 
   setModel(model: string): void {
@@ -49,6 +57,21 @@ class AIAdapter {
 
   getModel(): string {
     return this.config.model;
+  }
+
+  setProxyUrl(url: string): void {
+    this.proxyUrl = url;
+  }
+
+  getProxyUrl(): string {
+    return this.proxyUrl;
+  }
+
+  /**
+   * Check if the proxy is configured (always true in current implementation)
+   */
+  isProxyConfigured(): boolean {
+    return !!this.proxyUrl;
   }
 
   private getSystemPrompt(agent: AgentType, context: AIContext): string {
@@ -147,8 +170,8 @@ You specialize in code review. Focus on:
   }
 
   async *complete(request: CompletionRequest): AsyncGenerator<StreamChunk> {
-    if (!this.apiKey) {
-      yield { type: 'error', error: 'API key not set. Please provide your Anthropic API key.' };
+    if (!this.proxyUrl) {
+      yield { type: 'error', error: 'AI proxy not configured. Please check your server setup.' };
       return;
     }
 
@@ -178,12 +201,12 @@ You specialize in code review. Focus on:
         };
       }
 
-      const response = await fetch(API_ENDPOINT, {
+      // Call the server-side proxy instead of Anthropic directly
+      // The proxy holds the API key securely and forwards requests
+      const response = await fetch(this.proxyUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': this.apiKey,
-          'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
           model: this.config.model,

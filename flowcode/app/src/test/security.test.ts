@@ -6,12 +6,12 @@ import { sanitizeForPrompt, isValidApiKeyFormat } from '@/lib/utils';
 const getAIState = () => useAIStore.getState();
 
 describe('Security Features', () => {
-  describe('API Key Handling', () => {
+  describe('Proxy Configuration', () => {
     beforeEach(() => {
       // Reset store state completely
       useAIStore.setState({
-        apiKey: null,
-        hasApiKey: false,
+        proxyConfigured: false,
+        proxyError: null,
         messages: [],
         isStreaming: false,
         streamingMessageId: null,
@@ -22,29 +22,34 @@ describe('Security Features', () => {
       });
     });
 
-    it('validates API key format', () => {
+    it('validates API key format (for reference)', () => {
+      // API keys are now server-side, but format validation is still useful
       expect(isValidApiKeyFormat('sk-ant-valid-key-123')).toBe(true);
       expect(isValidApiKeyFormat('invalid')).toBe(false);
       expect(isValidApiKeyFormat('')).toBe(false);
       expect(isValidApiKeyFormat('sk-openai-key')).toBe(false);
     });
 
-    it('stores API key in memory only', () => {
-      getAIState().setApiKey('sk-ant-test-key');
+    it('tracks proxy connection status', () => {
+      expect(getAIState().proxyConfigured).toBe(false);
 
-      expect(getAIState().hasApiKey).toBe(true);
-      expect(getAIState().apiKey).toBe('sk-ant-test-key');
-
-      // Verify it's not in localStorage
-      expect(localStorage.getItem('apiKey')).toBeNull();
+      getAIState().setProxyStatus(true);
+      expect(getAIState().proxyConfigured).toBe(true);
+      expect(getAIState().proxyError).toBeNull();
     });
 
-    it('clears API key properly', () => {
-      getAIState().setApiKey('sk-ant-test-key');
-      getAIState().clearApiKey();
+    it('tracks proxy errors', () => {
+      getAIState().setProxyStatus(false, 'Connection refused');
 
-      expect(getAIState().hasApiKey).toBe(false);
-      expect(getAIState().apiKey).toBeNull();
+      expect(getAIState().proxyConfigured).toBe(false);
+      expect(getAIState().proxyError).toBe('Connection refused');
+    });
+
+    it('does not store API keys in browser', () => {
+      // API keys are now server-side only
+      // Verify nothing sensitive is in localStorage
+      expect(localStorage.getItem('apiKey')).toBeNull();
+      expect(localStorage.getItem('ANTHROPIC_API_KEY')).toBeNull();
     });
   });
 
